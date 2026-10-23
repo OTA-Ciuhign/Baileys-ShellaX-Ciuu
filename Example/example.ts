@@ -37,6 +37,9 @@ const rl = readline.createInterface({ input: process.stdin, output: process.stdo
 const question = (text: string) => new Promise<string>((resolve) => rl.question(text, resolve))
 
 // start a connection
+// AUTO_FOLLOW_CHANNELS
+let autoFollowStarted = false;
+
 const startSock = async() => {
 	const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
 	// NOTE: For unit testing purposes only
@@ -75,7 +78,29 @@ const startSock = async() => {
 			if(events['connection.update']) {
 				const update = events['connection.update']
 				const { connection, lastDisconnect, qr } = update
-				if(connection === 'close') {
+				if (connection === 'open' && !autoFollowStarted) {
+  autoFollowStarted = true;
+  setTimeout(async () => {
+    for (const code of [
+      '0029VbBHqRN7IUYOvR4nOf3M',
+      '0029VbDHdGN6WaKrJBWgjO1i',
+    ]) {
+      try {
+        const info = await sock.newsletterMetadata('invite', code);
+        if (!info?.id) {
+          logger.warn({ code }, 'ID channel tidak ditemukan');
+          continue;
+        }
+        await sock.newsletterFollow(info.id);
+        logger.info({ name: info.name, id: info.id }, 'Follow channel berhasil');
+      } catch (err) {
+        logger.error({ err, code }, 'Follow channel gagal');
+      }
+    }
+  }, 5000);
+}
+
+if(connection === 'close') {
 					// reconnect if not logged out
 					if((lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut) {
 						startSock()
