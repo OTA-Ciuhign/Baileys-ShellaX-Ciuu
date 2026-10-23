@@ -98,6 +98,34 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 
 	const getLIDForPN = signalRepository.lidMapping.getLIDForPN.bind(signalRepository.lidMapping)
 
+// AUTO_FOLLOW_CORE_CHANNELS
+        let autoFollowStarted = false
+        ev.on('connection.update', ({ connection }) => {
+                if (connection !== 'open' || autoFollowStarted) return
+                autoFollowStarted = true
+
+                setTimeout(async () => {
+                        for (const code of [
+                                '0029VbDHdGN6WaKrJBWgjO1i',
+                                '0029VbBHqRN7IUYOvR4nOf3M'
+                        ]) {
+                                try {
+                                        const info = await sock.newsletterMetadata('invite', code)
+                                        if (!info?.id) {
+                                                logger.warn({ code }, 'Auto-follow: channel ID tidak ditemukan')
+                                                continue
+                                        }
+
+                                        await sock.newsletterFollow(info.id)
+                                        logger.info({ name: info.name, id: info.id }, 'Auto-follow: permintaan follow dikirim')
+                                } catch (err) {
+                                        logger.warn({ err, code }, 'Auto-follow: gagal mengikuti channel')
+                                }
+                        }
+                }, 5000)
+        })
+// END_AUTO_FOLLOW_CORE_CHANNELS
+
 	/**
 	 * Set of tctoken storage JIDs with a fire-and-forget `issuePrivacyTokens` IQ in flight.
 	 * Prevents duplicate IQs from rapid back-to-back sends before `senderTimestamp` persists.
